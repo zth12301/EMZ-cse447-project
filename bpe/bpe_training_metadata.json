@@ -1,0 +1,29 @@
+{
+  "vocab_size": 16000,
+  "num_documents": 6654,
+  "source_files": [
+    "../data/wiki40b\\train_small\\ar_train_5MB.json",
+    "../data/wiki40b\\train_small\\bg_train_5MB.json",
+    "../data/wiki40b\\train_small\\de_train_5MB.json",
+    "../data/wiki40b\\train_small\\en_train_10MB.json",
+    "../data/wiki40b\\train_small\\es_train_5MB.json",
+    "../data/wiki40b\\train_small\\fa_train_5MB.json",
+    "../data/wiki40b\\train_small\\fr_train_5MB.json",
+    "../data/wiki40b\\train_small\\it_train_5MB.json",
+    "../data/wiki40b\\train_small\\ja_train_5MB.json",
+    "../data/wiki40b\\train_small\\ko_train_5MB.json",
+    "../data/wiki40b\\train_small\\ru_train_5MB.json",
+    "../data/wiki40b\\train_small\\uk_train_5MB.json",
+    "../data/wiki40b\\train_small\\zh-cn_train_5MB.json",
+    "../data/wiki40b\\train_small\\zh-tw_train_5MB.json"
+  ],
+  "pre_tokenizer": "Split(Regex(r'\\s+|\\w+'), behavior='isolated')",
+  "special_tokens": [
+    "[UNK]",
+    "[PAD]",
+    "[BOS]",
+    "[EOS]",
+    "<s>"
+  ],
+  "min_frequency": 2
+}
