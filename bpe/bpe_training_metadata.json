@@ -1,5 +1,5 @@
 {
-  "vocab_size": 16000,
+  "vocab_size": 20000,
   "num_documents": 6654,
   "source_files": [
     "../data/wiki40b\\train_small\\ar_train_5MB.json",
@@ -23,7 +23,7 @@
     "[PAD]",
     "[BOS]",
     "[EOS]",
-    "<s>"
+    "<sp>"
   ],
   "min_frequency": 2
 }

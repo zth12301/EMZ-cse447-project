@@ -19,7 +19,8 @@ import glob
 json_paths = glob.glob('../data/wiki40b/**/*.json', recursive=True)
 
 # Vocab size (8000 was default)
-vocab_size_parameter = 16000
+# TODO: 20,000 chosen somewhat arbitrarily - May need to test for best parameter
+vocab_size_parameter = 20000
 
 # Initializes tokenizer - don't set pre_tokenizer yet
 tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
@@ -30,7 +31,7 @@ tokenizer.pre_tokenizer = Split(Regex(r'\s+|\w+'), behavior="isolated")
 
 trainer = BpeTrainer(
     vocab_size=vocab_size_parameter,
-    special_tokens=["[UNK]", "[PAD]", "[BOS]", "[EOS]", "<s>"],  # Add <s> as a special token
+    special_tokens=["[UNK]", "[PAD]", "[BOS]", "[EOS]", "<sp>"],  # Add <sp> as a special token
     min_frequency=2  # Ignore tokens that appear less than twice
 )
 
@@ -90,8 +91,8 @@ with open('ngram_training_corpus.txt', 'w', encoding='utf-8') as f:
         # Get the tokens
         tokens = encoded.tokens
         
-        # Replace actual whitespace tokens with <s>
-        processed_tokens = ['<s>' if token.strip() == '' else token for token in tokens]
+        # Replace actual whitespace tokens with <sp>
+        processed_tokens = ['<sp>' if token.strip() == '' else token for token in tokens]
         
         # Join with spaces for output
         f.write(" ".join(processed_tokens) + "\n")
@@ -108,7 +109,7 @@ metadata = {
     "num_documents": len(processed_texts),
     "source_files": json_paths,
     "pre_tokenizer": "Split(Regex(r'\\s+|\\w+'), behavior='isolated')",
-    "special_tokens": ["[UNK]", "[PAD]", "[BOS]", "[EOS]", "<s>"],
+    "special_tokens": ["[UNK]", "[PAD]", "[BOS]", "[EOS]", "<sp>"],
     "min_frequency": 2
 }
 
