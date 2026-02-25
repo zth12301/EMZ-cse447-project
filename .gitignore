@@ -3,3 +3,7 @@ work/
 output/
 submit/
 submit.zip
+
+data/wiki40b/train_big
+bpe_data
+.vscode

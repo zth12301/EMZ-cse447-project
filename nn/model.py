@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from bpeDataset import create_dataloaders_from_corpus
+from itertools import cycle
 
 class TransformerModel(nn.Module):
     """
@@ -206,23 +208,102 @@ class TransformerModel(nn.Module):
         return F.cross_entropy(logits_2d, y_1d)
 
 
-def next_batch(*, batch_size: int, ctxt_plus_one: int, device: str) -> torch.LongTensor:
+_train_loader_iterator = None
+_val_loader_iterator = None
+_current_epoch = 0
+
+
+def init_data_loaders(tokenized_corpus_path: str, seq_length: int, batch_size: int, 
+                      tokenizer_path: str = "bpe_tokenizer.json"):
     """
-    Returns a batch of token IDs for next-token training.
+    Initialize the dataloaders and create iterators.
+    Call this once before training.
+    """
+    global _train_loader_iterator, _val_loader_iterator
+    
+    print("Creating dataloaders from BPE corpus...")
+    train_loader, val_loader, tokenizer, vocab_size = create_dataloaders_from_corpus(
+        tokenized_corpus_path=tokenized_corpus_path,
+        seq_length=seq_length,
+        batch_size=batch_size,
+        tokenizer_path=tokenizer_path,
+        train_split=0.9,
+        use_streaming=False,
+        num_workers=4
+    )
+    
+    # Create infinite iterators
+    _train_loader_iterator = cycle(train_loader)
+    _val_loader_iterator = cycle(val_loader)
+    
+    print(f"Vocabulary size from BPE: {vocab_size}")
+    print(f"Number of training batches: {len(train_loader)}")
+    print(f"Number of validation batches: {len(val_loader)}")
+    
+    return vocab_size, len(train_loader), len(val_loader)
+
+
+def next_batch(*, batch_size: int, ctxt_plus_one: int, device: str, 
+               validation: bool = False) -> torch.LongTensor:
+    """
+    Returns a batch of token IDs for next-token training using BPE data.
+    
     Inputs:
       batch_size: B
       ctxt_plus_one: c+1 (so the model can predict c next tokens)
       device: "cpu" or "cuda"
+      validation: if True, get batch from validation set
+      
     Output:
       tokens: LongTensor of shape (B, c+1) with values in [0, vocab_size)
     """
-    raise NotImplementedError
+    global _train_loader_iterator, _val_loader_iterator, _current_epoch
+    
+    # Select the appropriate iterator
+    iterator = _val_loader_iterator if validation else _train_loader_iterator
+    
+    # Get the next batch
+    batch = next(iterator)
+    
+    # Ensure batch is on the correct device and has the right shape
+    batch = batch.to(device)
+    
+    # The batch from dataloader already has shape (batch_size, seq_length+1)
+    # which matches what we need (ctxt_plus_one should equal seq_length+1)
+    assert batch.shape[1] == ctxt_plus_one, \
+        f"Expected sequence length {ctxt_plus_one}, got {batch.shape[1]}"
+    
+    return batch
+
+
+def reset_epoch():
+    """Call this at the start of each new epoch to reset validation iterator position."""
+    global _current_epoch
+    _current_epoch += 1
+    print(f"Starting epoch {_current_epoch}")
 
 
 # Main / train loop
 if __name__ == "__main__":
+
+    # Path to your pre-tokenized corpus
+    tokenized_corpus_path = "../bpe/ngram_training_corpus.txt"
+    tokenizer_path = "../bpe/bpe_tokenizer.json"
+    
+    # Model hyperparameters - adjusted for BPE
+    seq_length = 128
+    batch_size = 32
+
+    
+    vocab_size, num_train_batches, num_val_batches = init_data_loaders(
+        tokenized_corpus_path=tokenized_corpus_path,
+        seq_length=seq_length,
+        batch_size=batch_size,
+        tokenizer_path=tokenizer_path
+    )
+
     # Initialize the model
-    vocab_size = 128
+    # vocab_size = 128
     d_emb = 32
     d_qk = 16
     d_ff = 64
@@ -234,24 +315,44 @@ if __name__ == "__main__":
 
     # Train loop
     model.train()
-    for step in range(1000):
-        # Batch: tokens length = c+1
-        B = 16
-        c = 32
+    for epoch in range(10):  # Multiple epochs
+        reset_epoch()
         
-        # Create and load batch from dataloader.
-        # batch: (B, c+1)
-        batch = next_batch(batch_size=B, ctxt_plus_one=c + 1, device=device)
+        for step in range(num_train_batches):
+            # Get batch using next_batch (matches original interface)
+            batch = next_batch(
+                batch_size=batch_size,
+                ctxt_plus_one=seq_length + 1,
+                device=device,
+                validation=False
+            )
+            
+            loss = model.loss(batch)
+            
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            opt.step()
+            
+            if step % 50 == 0:
+                print(f"Epoch {epoch}, Step {step}, Loss: {float(loss):.4f}")
+        
+        # Validation (Commented out for now)
+        # model.eval()
+        # val_loss = 0
+        # with torch.no_grad():
+        #     for _ in range(min(num_val_batches, 100)):  # Limit validation batches
+        #         val_batch = next_batch(
+        #             batch_size=batch_size,
+        #             ctxt_plus_one=seq_length + 1,
+        #             device=device,
+        #             validation=True
+        #         )
+        #         val_loss += model.loss(val_batch).item()
+        # val_loss /= min(num_val_batches, 100)
+        # print(f"Epoch {epoch}, Validation Loss: {val_loss:.4f}")
+        # model.train()
 
-        loss = model.loss(batch)
-
-        opt.zero_grad(set_to_none=True)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # optional
-        opt.step()
-
-        if step % 50 == 0:
-            print(step, float(loss))
 
     # Save at end of training
     save_path = "transformer_model.pt"
